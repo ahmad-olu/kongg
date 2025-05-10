@@ -1,0 +1,4 @@
+[workspace]
+
+resolver = "3"
+members = ["kongg", "kongg_cli", "kongg_term", "kongg_markup", "kongg_shared"]

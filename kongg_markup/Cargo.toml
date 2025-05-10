@@ -1,0 +1,8 @@
+[package]
+name = "kongg_markup"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kongg_shared = { path = "../kongg_shared" }
+surrealdb = { version = "2.3.1" }
