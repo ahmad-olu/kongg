@@ -3,7 +3,7 @@ use surrealdb::{
     engine::local::{Db, SurrealKv},
 };
 
-use crate::utils::get_os_home::get_home;
+use crate::{constants::FILE_TABLE_NAME, utils::get_os_home::get_home};
 
 pub async fn init() -> Result<Surreal<Db>, Error> {
     let home = get_home().unwrap();
@@ -12,6 +12,11 @@ pub async fn init() -> Result<Surreal<Db>, Error> {
         .versioned()
         .await?;
     db.use_ns("test").use_db("test").await?;
+
+    // let a = db
+    //     .query(format!("REMOVE TABLE {};", FILE_TABLE_NAME))
+    //     .await
+    //     .unwrap();
 
     Ok(db)
 }

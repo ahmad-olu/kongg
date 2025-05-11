@@ -163,18 +163,47 @@ async fn async_watch<P: AsRef<Path>>(path: P) -> notify::Result<()> {
                                     }
                                     (Some(old_path), Some(new_path)) => {
                                         // 🔄 Confirm Rename (Remove from deletion tracking)
-                                        println!(
-                                            "-------------------- 2 ======={:?} /{:?}",
-                                            modify_kind, old_path
-                                        );
-                                        create_file(
-                                            &db,
-                                            File::new(
-                                                EventType::Renamed,
-                                                new_path.to_string_lossy().to_string(),
-                                            ),
-                                        )
-                                        .await;
+
+                                        let old_file_name = old_path
+                                            .to_string_lossy()
+                                            .to_string()
+                                            .rsplit(['/', '\\'])
+                                            .next()
+                                            .map(|s| s.to_string());
+
+                                        let new_file_name = Path::new(&new_path)
+                                            .canonicalize()
+                                            .ok()
+                                            .and_then(|p| {
+                                                p.file_name()
+                                                    .map(|f| f.to_string_lossy().to_string())
+                                            });
+
+                                        if old_file_name == new_file_name {
+                                            create_file(
+                                                &db,
+                                                File::new(
+                                                    EventType::Moved,
+                                                    new_path.to_string_lossy().to_string(),
+                                                )
+                                                .add_previous_path(
+                                                    old_path.to_string_lossy().to_string(),
+                                                ),
+                                            )
+                                            .await;
+                                        } else {
+                                            create_file(
+                                                &db,
+                                                File::new(
+                                                    EventType::Renamed,
+                                                    new_path.to_string_lossy().to_string(),
+                                                )
+                                                .add_previous_path(
+                                                    old_path.to_string_lossy().to_string(),
+                                                ),
+                                            )
+                                            .await;
+                                        }
                                         events.remove(old_path);
                                         events.remove(new_path);
 

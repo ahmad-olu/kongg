@@ -1,4 +1,5 @@
 pub mod constants;
+pub mod extensions;
 pub mod helpers;
 pub mod models;
 pub mod utils;
