@@ -2,17 +2,19 @@ use std::io;
 
 use crossterm::event::{KeyCode, KeyModifiers};
 use kongg_shared::{
+    extensions::format_file_size::FormateToString,
     helpers::{crud::get_file, surreal_init::init},
     models::file::FileResponse,
 };
 use ratatui::{
     DefaultTerminal, Frame,
+    crossterm::style::Stylize,
     layout::{Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Style, Stylize},
-    text::Line,
+    style::{Color, Modifier, Style, Stylize as _},
+    text::{Line, Span},
     widgets::{
-        Block, Borders, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table,
-        TableState,
+        self, Block, Borders, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState,
+        Table, TableState,
     },
 };
 
@@ -31,6 +33,7 @@ async fn main() -> io::Result<()> {
         items: files,
         state: TableState::default().with_selected(0),
         search_text: String::new(),
+        swipe_page: 0,
     };
 
     let app_result = app.run(&mut terminal);
@@ -45,6 +48,7 @@ pub struct App {
     items: Vec<FileResponse>,
     scroll_state: ScrollbarState,
     search_text: String,
+    swipe_page: i8,
 }
 
 impl App {
@@ -59,6 +63,21 @@ impl App {
         }
 
         Ok(())
+    }
+
+    fn increment_swipe_page(&mut self) {
+        if self.swipe_page == 2 {
+            self.swipe_page = 0;
+        } else {
+            self.swipe_page += 1;
+        }
+    }
+    fn decrement_swipe_page(&mut self) {
+        if self.swipe_page == 0 {
+            self.swipe_page = 2;
+        } else {
+            self.swipe_page -= 1;
+        }
     }
 
     pub fn next_row(&mut self) {
@@ -125,12 +144,16 @@ impl App {
                 self.search_text.pop();
             }
             (_k, KeyModifiers::CONTROL, KeyCode::Char('q')) => self.exit = true,
-            (_k, KeyModifiers::CONTROL, KeyCode::Char('j') | KeyCode::Down) => {
+            //(_k, KeyModifiers::CONTROL, KeyCode::Char('j') | KeyCode::Down) => {
+            (_k, KeyModifiers::NONE, KeyCode::Down) => {
                 self.next_row();
             }
-            (_k, KeyModifiers::CONTROL, KeyCode::Char('k') | KeyCode::Up) => {
+            // (_k, KeyModifiers::CONTROL, KeyCode::Char('k') | KeyCode::Up) => {
+            (_k, KeyModifiers::NONE, KeyCode::Up) => {
                 self.previous_row();
             }
+            (_k, KeyModifiers::NONE, KeyCode::Left) => self.decrement_swipe_page(),
+            (_k, KeyModifiers::NONE, KeyCode::Right) => self.increment_swipe_page(),
             _ => {}
         }
 
@@ -147,36 +170,86 @@ impl App {
         let rows = self.items.iter().enumerate().map(|(i, data)| {
             let item = data;
             let num = (i + 1).to_string();
-            let cells: Vec<String> = vec![
-                num,
-                item.event_type.to_string(),
-                item.path.clone(),
-                item.timestamp.to_string(),
-            ];
+
+            let cells = match self.swipe_page {
+                0 => vec![
+                    num,
+                    item.event_type.to_string(),
+                    item.path.clone(),
+                    item.timestamp.format("%Y-%m-%d [%H:%M]").to_string(),
+                ],
+                1 => vec![
+                    num,
+                    item.event_type.to_string(),
+                    item.file_name.clone().unwrap_or("_".to_string()),
+                    item.extension.clone().unwrap_or("_".to_string()),
+                ],
+                2 => vec![
+                    num,
+                    item.event_type.to_string(),
+                    item.parent_directory.clone().unwrap_or("_".to_string()),
+                    item.file_size
+                        .unwrap_or_default()
+                        .formate_file_size()
+                        .unwrap_or("_".to_string()),
+                ],
+                _ => vec![
+                    "S/N".to_string(),
+                    "_".to_string(),
+                    "_".to_string(),
+                    "_".to_string(),
+                ],
+            };
             Row::new(cells)
         });
 
-        let widths = [
+        let general_width = [
             Constraint::Max(3),
             Constraint::Fill(1),
             Constraint::Percentage(60),
             Constraint::Fill(1),
         ];
+        let similar_width = [
+            Constraint::Max(3),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+            Constraint::Fill(1),
+        ];
+        let widths = match self.swipe_page {
+            0 => general_width,
+            1 => similar_width,
+            2 => general_width,
+            _ => general_width,
+        };
         let widget = Table::new(rows, widths)
             .style(Style::new().light_yellow())
             .header(
-                Row::new(vec!["S/N", "Event Type", "path", "time & date"])
-                    .height(1)
-                    .style(Style::default().fg(Color::Magenta))
-                    .bg(Color::White),
+                Row::new(match self.swipe_page {
+                    0 => vec!["S/N", "Event Type", "path", "time & date"],
+                    1 => vec!["S/N", "Event Type", "File Name", ".Ext"],
+                    2 => vec!["S/N", "Event Type", "Parent Directory", "File Size"],
+                    _ => vec!["S/N", "_", "_", "_"],
+                })
+                .height(1)
+                .style(Style::default().fg(Color::Magenta))
+                .bg(Color::White),
             );
         frame.render_stateful_widget(widget, area, &mut self.state);
     }
     fn render_title(&self, frame: &mut Frame, area: Rect) {
-        let widget = Line::from("Kongg on the Terminal")
-            .bold()
-            .centered()
-            .yellow();
+        // let widget = Line::from("Kongg on the Terminal")
+        //     .bold()
+        //     .centered()
+        //     .yellow();
+        let widget = Line::from(vec![
+            Span::raw(" [Left]"),
+            Span::styled(
+                "=> Kongg on the Terminal <=",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" [Right]"),
+        ])
+        .centered();
 
         frame.render_widget(widget, area);
     }
