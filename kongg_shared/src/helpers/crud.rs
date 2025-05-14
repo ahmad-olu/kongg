@@ -6,7 +6,16 @@ use crate::{
 };
 
 pub async fn get_file(db: &Surreal<Db>) -> Vec<FileResponse> {
-    db.select(FILE_TABLE_NAME).await.unwrap()
+    // db.set("table", FILE_TABLE_NAME).await.unwrap();
+
+    let mut res = db
+        .query("SELECT *  FROM type::table($table) ORDER BY timestamp DESC")
+        .bind(("table", FILE_TABLE_NAME))
+        .await
+        .unwrap();
+    res.take(0).unwrap()
+
+    // db.select(FILE_TABLE_NAME).await.unwrap()
 }
 
 pub async fn create_file(db: &Surreal<Db>, file: File) -> () {
